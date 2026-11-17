@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}{{ title }} · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Каталог</p>
+    <h1>{{ title }}</h1>
+    <p class="muted">
+      Если цена или длительность не подтверждены, оставьте поле пустым. Трекер
+      покажет «требует оценки», а не ноль.
+    </p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-ghost" href="{% url 'tracker:service_list' %}">← К каталогу</a>
+  </div>
+</section>
+
+<form method="post" class="panel form-narrow" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}
+    <div class="form-alert" role="alert">
+      {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="form-grid">
+    {% include "tracker/_field.html" with field=form.name wide=True %}
+    {% include "tracker/_field.html" with field=form.category %}
+    {% include "tracker/_field.html" with field=form.base_price %}
+    {% include "tracker/_field.html" with field=form.price_is_from %}
+    {% include "tracker/_field.html" with field=form.duration_minutes %}
+    {% include "tracker/_field.html" with field=form.is_active %}
+    {% include "tracker/_field.html" with field=form.is_confirmed %}
+    {% include "tracker/_field.html" with field=form.description wide=True %}
+  </div>
+
+  <div class="form-actions">
+    <button class="btn btn-primary" type="submit">Сохранить</button>
+    <a class="btn btn-ghost" href="{% url 'tracker:service_list' %}">Отмена</a>
+  </div>
+  <p class="hint">
+    Обновление услуги не меняет уже созданные заказы: в строках заказов хранится
+    историческое название и цена.
+  </p>
+</form>
+{% endblock %}

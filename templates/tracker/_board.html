@@ -1,0 +1,77 @@
+{% load tracker_tags %}
+<div id="board"
+     class="board"
+     data-signature="{{ signature }}"
+     data-fragment-url="{% url 'tracker:board_fragment' %}">
+  <div class="board-scroll">
+    {% for column in columns %}
+      <section class="kanban-column tone-{{ column.tone }}" data-column-status="{{ column.status }}">
+        <header class="column-head">
+          <div>
+            <span class="column-kicker"></span>
+            <h2>{{ column.label }}</h2>
+          </div>
+          <span class="column-count">{{ column.orders|length }}</span>
+        </header>
+
+        <div class="kanban-cards" data-drop-status="{{ column.status }}">
+          {% for order in column.orders %}
+            <article class="kanban-card"
+                     draggable="{% if order.forward_targets %}true{% else %}false{% endif %}"
+                     data-order-id="{{ order.pk }}"
+                     data-order-number="{{ order.display_number }}"
+                     data-version="{{ order.version }}"
+                     data-status="{{ order.status }}"
+                     data-status-url="{% url 'tracker:order_status' order.pk %}"
+                     data-status-label="{{ column.label }}">
+              <a class="card-main" href="{% url 'tracker:order_detail' order.pk %}">
+                <div class="card-topline">
+                  <span class="order-number">{{ order.display_number }}</span>
+                  <span class="source-chip">{{ order.get_source_display }}</span>
+                  {% if order.problem_flag %}
+                    <span class="problem-chip" title="Есть проблема или задержка">⚠</span>
+                  {% endif %}
+                </div>
+                <h3 class="card-title">{{ order.client.name }}</h3>
+                <p class="card-vehicle">{{ order.vehicle_label }}</p>
+                <p class="card-services">{{ order.service_names_short }}</p>
+                <div class="card-meta">
+                  <span class="meta-item">
+                    <span class="meta-label">Запись</span>
+                    {% if order.planned_start %}{{ order.planned_start|dt }}{% else %}не назначена{% endif %}
+                  </span>
+                  <span class="meta-item">
+                    <span class="meta-label">Мастер</span>
+                    {% if order.master %}{{ order.master.display_name }}{% else %}—{% endif %}
+                  </span>
+                </div>
+              </a>
+
+              {% if order.forward_targets %}
+                <form class="card-status-form" method="post"
+                      action="{% url 'tracker:order_status' order.pk %}">
+                  {% csrf_token %}
+                  <input type="hidden" name="version" value="{{ order.version }}">
+                  <input type="hidden" name="next" value="{% url 'tracker:board' %}">
+                  <label class="sr-only" for="status-{{ order.pk }}">Новый статус</label>
+                  <select id="status-{{ order.pk }}" name="to">
+                    <option value="">Статус…</option>
+                    {% for target in order.forward_targets %}
+                      <option value="{{ target.value }}"
+                              {% if target.value == 'ready' and order.ready_blocker %}disabled title="{{ order.ready_blocker }}"{% endif %}>
+                        {{ target.label }}
+                      </option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-tiny" type="submit" title="Применить статус">OK</button>
+                </form>
+              {% endif %}
+            </article>
+          {% empty %}
+            <p class="column-empty">Пока пусто</p>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+</div>

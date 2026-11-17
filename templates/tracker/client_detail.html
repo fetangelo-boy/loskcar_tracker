@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}{{ client.name }} · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="detail-head">
+  <div>
+    <a class="back-link" href="{% url 'tracker:client_list' %}">← Клиенты</a>
+    <div class="detail-title-row">
+      <h1>{{ client.name }}</h1>
+      {% if client.is_regular %}<span class="mini-badge">постоянный клиент</span>{% endif %}
+    </div>
+    <p class="muted">
+      <a href="tel:{{ client.phone }}">{{ client.phone|phone }}</a>
+      {% if client.telegram %} · {{ client.telegram }}{% endif %}
+      · создан {{ client.created_at|dt }}
+    </p>
+  </div>
+  {% if can_create_order %}
+    <div class="page-head-actions">
+      <a class="btn btn-primary" href="{% url 'tracker:order_create' %}?client={{ client.pk }}">+ Новая заявка</a>
+    </div>
+  {% endif %}
+</section>
+
+<div class="detail-layout">
+  <div class="detail-main">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Заказы клиента</h2>
+        <span class="mini-badge muted">{{ orders|length }}</span>
+      </div>
+      {% if orders %}
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Заказ</th>
+                <th>Создан</th>
+                <th>Автомобиль</th>
+                <th>Услуги</th>
+                <th>Запись</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for order in orders %}
+                <tr>
+                  <td><a class="row-link" href="{% url 'tracker:order_detail' order.pk %}">{{ order.display_number }}</a></td>
+                  <td class="nowrap">{{ order.created_at|dt }}</td>
+                  <td>{{ order.vehicle_label }}</td>
+                  <td class="services-cell">{{ order.service_names_short }}</td>
+                  <td class="nowrap">{% if order.planned_start %}{{ order.planned_start|dt }}{% else %}<span class="muted">—</span>{% endif %}</td>
+                  <td><span class="badge tone-{{ order.status|tone }}">{{ order.get_status_display }}</span></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state compact">
+          <p>У клиента ещё нет заказов.</p>
+          {% if can_create_order %}
+            <a class="btn btn-secondary btn-sm" href="{% url 'tracker:order_create' %}?client={{ client.pk }}">Создать заявку</a>
+          {% endif %}
+        </div>
+      {% endif %}
+    </section>
+
+    {% if client.notes and can_view_internal_notes %}
+      <section class="panel">
+        <div class="panel-head"><h2>Внутренние заметки</h2></div>
+        <p class="pre-line">{{ client.notes }}</p>
+      </section>
+    {% endif %}
+
+    {% if can_manage_clients %}
+      <section class="panel">
+        <details class="edit-client">
+          <summary>Редактировать карточку клиента</summary>
+          <form method="post" action="{% url 'tracker:client_edit' client.pk %}" class="form-grid">
+            {% csrf_token %}
+            {% include "tracker/_field.html" with field=edit_form.name %}
+            {% include "tracker/_field.html" with field=edit_form.phone %}
+            {% include "tracker/_field.html" with field=edit_form.telegram %}
+            {% include "tracker/_field.html" with field=edit_form.notes wide=True %}
+            <div class="form-field form-field-wide checkbox-field">
+              <label for="{{ edit_form.is_regular.id_for_label }}">
+                {{ edit_form.is_regular }} Постоянный клиент
+              </label>
+            </div>
+            <div class="form-field form-field-wide">
+              <button class="btn btn-secondary" type="submit">Сохранить карточку</button>
+            </div>
+          </form>
+        </details>
+      </section>
+    {% endif %}
+  </div>
+
+  <aside class="detail-side">
+    <div class="panel side-sticky">
+      <div class="panel-head"><h2>Автомобили</h2><span class="mini-badge muted">{{ vehicles|length }}</span></div>
+      <div class="vehicle-list">
+        {% for vehicle in vehicles %}
+          <div class="vehicle-item">
+            <strong>{{ vehicle.display_name }}</strong>
+            {% if vehicle.plate %}<span class="plate">{{ vehicle.plate }}</span>{% endif %}
+            <div class="subline">Заказов: {{ vehicle.orders.count }}</div>
+          </div>
+        {% empty %}
+          <p class="muted">Автомобилей пока нет.</p>
+        {% endfor %}
+      </div>
+
+      {% if can_manage_clients %}
+        <details class="add-vehicle">
+          <summary>Добавить автомобиль</summary>
+          <form method="post" action="{% url 'tracker:client_vehicle_add' client.pk %}" class="form-grid single-column">
+            {% csrf_token %}
+            {% include "tracker/_field.html" with field=vehicle_form.make %}
+            {% include "tracker/_field.html" with field=vehicle_form.model %}
+            {% include "tracker/_field.html" with field=vehicle_form.plate %}
+            <button class="btn btn-secondary btn-block" type="submit">Добавить</button>
+          </form>
+        </details>
+      {% endif %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

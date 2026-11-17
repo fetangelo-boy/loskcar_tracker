@@ -1,0 +1,75 @@
+{% load tracker_tags %}
+<article class="master-card tone-{{ order.status|tone }}">
+  <header class="master-card-head">
+    <div class="master-card-id">
+      <span class="order-number">{{ order.display_number }}</span>
+      <span class="badge tone-{{ order.status|tone }}">{{ order.status|status_text }}</span>
+      {% if order.problem_flag %}
+        <span class="problem-chip" title="Есть проблема или задержка">⚠</span>
+      {% endif %}
+    </div>
+    <div class="master-time">
+      {% if order.planned_start %}
+        {{ order.planned_start|dt }}{% if order.planned_end %} — {{ order.planned_end|time:"H:i" }}{% endif %}
+      {% else %}
+        время не назначено
+      {% endif %}
+    </div>
+  </header>
+
+  <div class="master-contact">
+    <p class="master-client">{{ order.client.name }}</p>
+    {% if order.client.phone %}
+      <a class="master-phone" href="tel:{{ order.client.phone }}">{{ order.client.phone|phone }}</a>
+    {% else %}
+      <span class="muted">телефон не указан</span>
+    {% endif %}
+    <p class="master-vehicle">{{ order.vehicle_label }}</p>
+  </div>
+
+  {% if order.active_rows %}
+    <div class="master-services">
+      {% for row in order.active_rows %}
+        <div class="master-service{% if row.is_done %} is-done{% endif %}">
+          <span class="master-service-name">
+            <span class="master-service-mark" aria-hidden="true">{% if row.is_done %}✓{% else %}•{% endif %}</span>
+            {{ row.name }}
+          </span>
+          {% if order.can_toggle_services %}
+            <form method="post" action="{% url 'tracker:order_toggle_service' order.pk row.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="version" value="{{ order.version }}">
+              <input type="hidden" name="done" value="{% if row.is_done %}0{% else %}1{% endif %}">
+              <input type="hidden" name="next" value="{% url 'tracker:master_screen' %}">
+              <button class="btn btn-lg {% if row.is_done %}btn-ghost{% else %}btn-secondary{% endif %}" type="submit">
+                {% if row.is_done %}Снять отметку{% else %}Выполнено{% endif %}
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="master-blocker">В заказе нет активных услуг.</p>
+  {% endif %}
+
+  {% if order.ready_blocker %}
+    <p class="master-blocker">{{ order.ready_blocker }}</p>
+  {% endif %}
+
+  <div class="master-actions">
+    {% if order.main_action %}
+      <form method="post" action="{% url 'tracker:order_status' order.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="to" value="{{ order.main_action.to }}">
+        <input type="hidden" name="version" value="{{ order.version }}">
+        <input type="hidden" name="next" value="{% url 'tracker:master_screen' %}">
+        <button class="btn btn-primary btn-xl btn-block" type="submit"
+                {% if order.main_action.to == "ready" and order.ready_blocker %}disabled title="{{ order.ready_blocker }}"{% endif %}>
+          {{ order.main_action.label }}
+        </button>
+      </form>
+    {% endif %}
+    <a class="btn btn-ghost" href="{% url 'tracker:order_detail' order.pk %}">Карточка заказа</a>
+  </div>
+</article>

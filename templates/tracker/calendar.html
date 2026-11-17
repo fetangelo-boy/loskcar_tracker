@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}Календарь · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Запись и загрузка</p>
+    <h1>Календарь</h1>
+    <p class="muted">
+      Запись — это свойство заказа, отдельной копии нет. Календарь показывает
+      подтверждённые интервалы и проверяет, что одновременно занято не больше
+      {{ capacity }} мест. Перенос и отмена выполняются в карточке заказа.
+    </p>
+  </div>
+  {% if can_create_order %}
+    <div class="page-head-actions">
+      <a class="btn btn-primary" href="{% url 'tracker:order_create' %}">+ Новая заявка</a>
+    </div>
+  {% endif %}
+</section>
+
+<div class="calendar-toolbar">
+  <div class="calendar-nav">
+    <a class="btn btn-ghost btn-sm"
+       aria-label="Предыдущий период"
+       href="?view={{ mode }}&date={{ prev_date|date:'Y-m-d' }}{% if selected_master %}&master={{ selected_master.pk }}{% endif %}">←</a>
+    <a class="btn btn-secondary btn-sm"
+       href="?view={{ mode }}&date={{ today|date:'Y-m-d' }}{% if selected_master %}&master={{ selected_master.pk }}{% endif %}">Сегодня</a>
+    <a class="btn btn-ghost btn-sm"
+       aria-label="Следующий период"
+       href="?view={{ mode }}&date={{ next_date|date:'Y-m-d' }}{% if selected_master %}&master={{ selected_master.pk }}{% endif %}">→</a>
+    <strong class="calendar-period">
+      {% if mode == "day" %}
+        {{ period_start|date:"j E Y" }} · {{ schedules.0.weekday_name }}
+      {% else %}
+        {{ period_start|date:"j E" }} — {{ period_end|date:"j E Y" }}
+      {% endif %}
+    </strong>
+  </div>
+
+  <div class="calendar-modes" role="group" aria-label="Вид календаря">
+    <a class="mode-link {% if mode == 'day' %}is-active{% endif %}"
+       href="?view=day&date={{ anchor|date:'Y-m-d' }}{% if selected_master %}&master={{ selected_master.pk }}{% endif %}">День</a>
+    <a class="mode-link {% if mode == 'week' %}is-active{% endif %}"
+       href="?view=week&date={{ anchor|date:'Y-m-d' }}{% if selected_master %}&master={{ selected_master.pk }}{% endif %}">Неделя</a>
+  </div>
+
+  <form class="calendar-filter" method="get" action="{% url 'tracker:calendar' %}">
+    <input type="hidden" name="view" value="{{ mode }}">
+    <input type="hidden" name="date" value="{{ anchor|date:'Y-m-d' }}">
+    <label class="select-field">
+      <span class="sr-only">Фильтр по мастеру</span>
+      <select name="master" data-submit-on-change>
+        <option value="">Все мастера</option>
+        {% for master in masters %}
+          <option value="{{ master.pk }}" {% if selected_master.pk == master.pk %}selected{% endif %}>
+            {{ master.display_name }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button class="btn btn-secondary btn-sm" type="submit">Применить</button></noscript>
+  </form>
+</div>
+
+<div class="calendar-summary">
+  <span class="badge tone-booked">Записей: {{ total_count }}</span>
+  {% if conflict_total %}
+    <span class="badge tone-outcome">Пересечений сверх вместимости: {{ conflict_total }}</span>
+  {% else %}
+    <span class="badge tone-issued">Пересечений нет</span>
+  {% endif %}
+  <span class="calendar-legend">
+    <span class="legend-item"><span class="legend-dot tone-booked"></span>записан</span>
+    <span class="legend-item"><span class="legend-dot tone-accepted"></span>принят</span>
+    <span class="legend-item"><span class="legend-dot tone-progress"></span>в работе</span>
+    <span class="legend-item"><span class="legend-dot tone-ready"></span>готов</span>
+  </span>
+</div>
+
+{% if not hours_confirmed %}
+  <div class="calendar-note">
+    Рабочие часы студии ещё не подтверждены, поэтому сетка показывает сутки
+    целиком — это не график работы. Когда владелец подтвердит часы, задайте
+    <code>WORKSHOP_OPEN_HOUR</code> и <code>WORKSHOP_CLOSE_HOUR</code> в
+    окружении, и сетка сузится до рабочего дня.
+  </div>
+{% endif %}
+
+{% if conflict_total %}
+  <div class="calendar-warning" role="alert">
+    В выбранном периоде есть пересечения сверх вместимости. Заказы не удалены и
+    не скрыты: проверьте время в карточке и перенесите лишнюю запись. Новые
+    пересечения сервер не пропустит.
+  </div>
+{% endif %}
+
+{% if total_count %}
+  <div class="calendar-scroll">
+    <div class="calendar" style="--hour-px: {{ hour_px }}px; --hour-rows: {{ schedules.0.hours|length }};">
+      <div class="calendar-axis" aria-hidden="true">
+        <div class="axis-spacer"></div>
+        {% for hour in schedules.0.hours %}
+          <div class="axis-hour">{{ hour }}</div>
+        {% endfor %}
+      </div>
+
+      {% for day in schedules %}
+        <section class="calendar-day{% if day.is_today %} is-today{% endif %}"
+                 aria-label="{{ day.weekday_name }}, {{ day.day|date:'j E' }}">
+          <header class="calendar-day-head">
+            <span class="day-name">{{ day.weekday_name }}</span>
+            <span class="day-date">{{ day.day|date:"j E" }}</span>
+            <span class="day-load load-{{ day.load_state }}"
+                  title="Максимальная одновременная загрузка">
+              {{ day.peak }}/{{ capacity }}
+            </span>
+          </header>
+
+          <div class="calendar-lanes" style="--lanes: {{ day.lane_count }};">
+            {% for entry in day.entries %}
+              <a class="booking tone-{{ entry.order.status|tone }}{% if entry.conflict %} is-conflict{% endif %}"
+                 style="top: {{ entry.offset_px }}px; height: {{ entry.height_px }}px; left: {{ entry.left_pct }}%; width: {{ entry.width_pct }}%;"
+                 href="{% url 'tracker:order_detail' entry.order.pk %}"
+                 title="{{ entry.time_label }} · {{ entry.order.client.name }} · {{ entry.order.vehicle_label }}">
+                <span class="booking-top">
+                  <span class="booking-time">{{ entry.time_label }}</span>
+                  {% if entry.order.problem_flag %}<span class="booking-problem" title="Есть проблема">⚠</span>{% endif %}
+                </span>
+                <span class="booking-number">{{ entry.order.display_number }}</span>
+                <span class="booking-client">{{ entry.order.client.name }}</span>
+                <span class="booking-vehicle">{{ entry.order.vehicle_label }}</span>
+                {% if entry.height_px >= 78 %}
+                  <span class="booking-service">{{ entry.order.service_names_short }}</span>
+                {% endif %}
+              </a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if mode == "day" %}
+    <section class="panel day-details">
+      <div class="panel-head">
+        <h2>Записи дня</h2>
+        <span class="muted">
+          {{ schedules.0.count }} записей · пик {{ schedules.0.peak }} из {{ capacity }}
+        </span>
+      </div>
+
+      {% if schedules.0.entries %}
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>Заказ</th>
+                <th>Клиент</th>
+                <th>Автомобиль</th>
+                <th>Статус</th>
+                <th>Мастер</th>
+                <th>Услуги</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in schedules.0.entries %}
+                <tr>
+                  <td class="nowrap">
+                    {{ entry.time_label }}
+                    {% if entry.starts_before %}<span class="mini-badge muted">с прошлого дня</span>{% endif %}
+                    {% if entry.ends_after %}<span class="mini-badge muted">на следующий день</span>{% endif %}
+                  </td>
+                  <td>
+                    <a class="row-link" href="{% url 'tracker:order_detail' entry.order.pk %}">
+                      {{ entry.order.display_number }}
+                    </a>
+                  </td>
+                  <td>
+                    {{ entry.order.client.name }}
+                    <div class="subline">{{ entry.order.client.phone|phone }}</div>
+                  </td>
+                  <td>{{ entry.order.vehicle_label }}</td>
+                  <td>
+                    <span class="badge tone-{{ entry.order.status|tone }}">
+                      {{ entry.order.status|status_text }}
+                    </span>
+                    {% if entry.conflict %}<span class="mini-badge badge-warn">пересечение</span>{% endif %}
+                  </td>
+                  <td>{{ entry.order.master.display_name|default:"—" }}</td>
+                  <td class="services-cell">{{ entry.order.service_names_short }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">На этот день подтверждённых записей нет.</p>
+      {% endif %}
+
+      {% if hours_confirmed and schedules.0.free_windows %}
+        <div class="free-windows">
+          <h3>Есть место для ещё одной записи</h3>
+          <ul>
+            {% for window in schedules.0.free_windows %}
+              <li>{{ window.0|time:"H:i" }}–{{ window.1|time:"H:i" }}</li>
+            {% endfor %}
+          </ul>
+          <p class="hint">
+            Окна внутри подтверждённых рабочих часов, где занято меньше
+            {{ capacity }} мест: сюда можно записать ещё один автомобиль.
+          </p>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <p class="board-hint">
+    Блоки показывают подтверждённое время записи. Красная рамка — пересечение
+    сверх {{ capacity }} мест, такие записи нужно перенести вручную.
+    «Готово» не освобождает место: оно освобождается при выдаче или по
+    окончании планового интервала.
+  </p>
+{% else %}
+  <div class="panel empty-state">
+    <h2>Записей нет</h2>
+    <p>
+      На выбранный период нет подтверждённых записей. Записать заявку можно из
+      канбана или карточки заказа: нужны услуга, автомобиль и интервал.
+    </p>
+    <a class="btn btn-secondary" href="{% url 'tracker:board' %}">К канбану</a>
+  </div>
+{% endif %}
+{% endblock %}

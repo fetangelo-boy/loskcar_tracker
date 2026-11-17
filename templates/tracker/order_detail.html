@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% load static tracker_tags %}
+
+{% block title %}{{ order.display_number }} · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="detail-head">
+  <div>
+    <a class="back-link" href="{% url 'tracker:board' %}">← Канбан</a>
+    <div class="detail-title-row">
+      <h1>{{ order.display_number }}</h1>
+      <span class="badge badge-lg tone-{{ order.status|tone }}">{{ order.get_status_display }}</span>
+      {% if order.problem_flag %}<span class="problem-chip large">⚠ проблема</span>{% endif %}
+    </div>
+    <p class="muted">
+      Создан {{ order.created_at|dt }} · источник: {{ order.get_source_display }}
+    </p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-ghost" href="{% url 'tracker:client_detail' order.client.pk %}">Карточка клиента</a>
+    {% if can_edit_order %}
+      <a class="btn btn-secondary" href="{% url 'tracker:order_edit' order.pk %}">Изменить</a>
+    {% endif %}
+    {% if can_create_order %}
+      <a class="btn btn-primary" href="{% url 'tracker:order_create' %}?client={{ order.client.pk }}">+ Ещё заявка</a>
+    {% endif %}
+  </div>
+</section>
+
+{% if unresolved_problems %}
+  <div class="alert-banner">
+    <span class="warning-icon" aria-hidden="true">!</span>
+    <div>
+      <strong>Открыта проблема или задержка.</strong>
+      Проверьте комментарии. Готовность не блокируется этим запросом, но владелец должен увидеть его.
+    </div>
+    {% if can_resolve_problems %}
+      <form method="post" action="{% url 'tracker:order_resolve_problems' order.pk %}">
+        {% csrf_token %}
+        <button class="btn btn-secondary btn-sm" type="submit">Проблема решена</button>
+      </form>
+    {% endif %}
+  </div>
+{% endif %}
+
+<div class="detail-layout"
+     data-order-version="{{ order.version }}"
+     data-pulse-url="{% url 'tracker:order_pulse' order.pk %}">
+  <div class="detail-main">
+
+    <section class="panel">
+      <div class="panel-head"><h2>Клиент и автомобиль</h2></div>
+      <div class="info-grid">
+        <div class="info-block">
+          <span class="info-label">Клиент</span>
+          <a class="info-value link-strong" href="{% url 'tracker:client_detail' order.client.pk %}">{{ order.client.name }}</a>
+          {% if order.client.is_regular %}<span class="mini-badge">постоянный</span>{% endif %}
+        </div>
+        <div class="info-block">
+          <span class="info-label">Телефон</span>
+          <a class="info-value" href="tel:{{ order.client.phone }}">{{ order.client.phone|phone }}</a>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Telegram</span>
+          <span class="info-value">{{ order.client.telegram|default:"—" }}</span>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Автомобиль</span>
+          <span class="info-value">
+            {% if order.vehicle %}
+              {{ order.vehicle.display_name }}
+              {% if order.vehicle.plate %}<span class="plate">{{ order.vehicle.plate }}</span>{% endif %}
+            {% else %}—{% endif %}
+          </span>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Мастер</span>
+          <span class="info-value">{% if order.master %}{{ order.master.display_name }}{% else %}не назначен{% endif %}</span>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Желаемое время</span>
+          <span class="info-value">{% if order.desired_at %}{{ order.desired_at|dt }}{% else %}—{% endif %}</span>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Подтверждённая запись</span>
+          <span class="info-value">
+            {% if order.planned_start %}
+              {{ order.planned_start|dt }}{% if order.planned_end %} — {{ order.planned_end|dt }}{% endif %}
+            {% else %}не назначена{% endif %}
+          </span>
+        </div>
+        <div class="info-block">
+          <span class="info-label">Создал</span>
+          <span class="info-value">{% if order.created_by %}{{ order.created_by.display_name }}{% else %}система / без входа{% endif %}</span>
+        </div>
+      </div>
+      {% if order.comment %}
+        <div class="comment-block">
+          <span class="info-label">Комментарий к заказу</span>
+          <p>{{ order.comment|linebreaksbr }}</p>
+        </div>
+      {% endif %}
+    </section>
+
+    <section class="panel" id="services">
+      <div class="panel-head">
+        <h2>Услуги</h2>
+        <span class="mini-badge muted">{{ active_services|length }} активных</span>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table services-table">
+          <thead>
+            <tr>
+              <th>Услуга</th>
+              <th>Длительность</th>
+              {% if can_view_prices %}<th>Цена</th>{% endif %}
+              <th>Выполнение</th>
+              <th class="actions-col">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in services %}
+              <tr class="{% if not row.is_active %}row-muted{% endif %} {% if row.is_done %}row-done{% endif %}">
+                <td>
+                  <span class="service-name">{{ row.name }}</span>
+                  {% if not row.is_active %}<span class="mini-badge muted">не активна</span>{% endif %}
+                </td>
+                <td class="nowrap">{{ row.duration_minutes|duration }}</td>
+                {% if can_view_prices %}
+                  <td class="nowrap">
+                    {% if row.unit_price is None %}
+                      <span class="estimate">требует оценки</span>
+                    {% else %}
+                      {% if row.price_is_from %}от {% endif %}{{ row.unit_price|money }}
+                    {% endif %}
+                  </td>
+                {% endif %}
+                <td>
+                  {% if row.is_done %}
+                    <span class="state state-done">✓ выполнена</span>
+                    {% if row.done_at %}<div class="subline">{{ row.done_at|dt }}</div>{% endif %}
+                  {% elif not row.is_active %}
+                    <span class="state">убрана</span>
+                  {% else %}
+                    <span class="state state-wait">ожидает</span>
+                  {% endif %}
+                </td>
+                <td class="actions-col">
+                  {% if row.is_active %}
+                    {% if can_toggle_service %}
+                      {% if order.status == "accepted" or order.status == "in_progress" %}
+                        <form method="post" action="{% url 'tracker:order_toggle_service' order.pk row.pk %}" class="inline-form">
+                          {% csrf_token %}
+                          <input type="hidden" name="version" value="{{ order.version }}">
+                          <input type="hidden" name="done" value="{% if row.is_done %}0{% else %}1{% endif %}">
+                          <button class="btn btn-tiny {% if row.is_done %}btn-ghost{% else %}btn-secondary{% endif %}" type="submit">
+                            {% if row.is_done %}Снять отметку{% else %}Выполнено{% endif %}
+                          </button>
+                        </form>
+                      {% endif %}
+                    {% endif %}
+                    {% if can_edit_services and can_remove_service %}
+                      <details class="inline-details">
+                        <summary>Убрать</summary>
+                        <form method="post" action="{% url 'tracker:order_remove_service' order.pk row.pk %}" class="inline-remove-form">
+                          {% csrf_token %}
+                          <input type="text" name="reason" maxlength="300" placeholder="Причина" required>
+                          <button class="btn btn-tiny btn-danger" type="submit" data-confirm="Убрать услугу из активных?">Убрать</button>
+                        </form>
+                      </details>
+                    {% endif %}
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="{% if can_view_prices %}5{% else %}4{% endif %}" class="muted">
+                  Услуги не выбраны.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              {% if can_view_prices %}
+                <td colspan="2">
+                  {% if known_count %}Предварительная сумма по известным ценам{% else %}Стоимость работ{% endif %}
+                </td>
+                <td class="nowrap">
+                  {% if known_count %}<strong>{{ known_total|money }}</strong>{% else %}<strong>—</strong>{% endif %}
+                </td>
+                <td colspan="2">
+                  {% if unknown_count %}
+                    <span class="estimate">
+                      Позиций без цены: {{ unknown_count }} — итог подтверждает владелец
+                    </span>
+                  {% else %}
+                    <span class="muted">Итоговая сумма появится на этапе финансов.</span>
+                  {% endif %}
+                </td>
+              {% else %}
+                <td colspan="4">
+                  <span class="muted">Стоимость работ доступна владельцу и администратору.</span>
+                </td>
+              {% endif %}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {% if can_edit_services and can_add_service %}
+        <form method="post" action="{% url 'tracker:order_add_service' order.pk %}" class="inline-add-form">
+          {% csrf_token %}
+          <label class="sr-only" for="{{ add_service_form.service.id_for_label }}">Добавить услугу</label>
+          {{ add_service_form.service }}
+          <button class="btn btn-secondary" type="submit">+ Добавить услугу</button>
+        </form>
+      {% endif %}
+      <p class="hint">
+        Название и цена фиксируются в заказе на момент выбора — обновление прайса
+        не переписывает прошлое. Пустая цена показывается как «требует оценки».
+      </p>
+    </section>
+
+    <section class="panel" id="comments">
+      <div class="panel-head"><h2>Комментарии и проблемы</h2></div>
+      <form method="post" action="{% url 'tracker:order_comment' order.pk %}" class="comment-form">
+        {% csrf_token %}
+        <div class="comment-form-grid">
+          <div class="form-field">
+            <label for="{{ comment_form.kind.id_for_label }}">Тип</label>
+            {{ comment_form.kind }}
+          </div>
+          <div class="form-field">
+            <label for="{{ comment_form.expected_at.id_for_label }}">Новое ожидаемое время</label>
+            {{ comment_form.expected_at }}
+          </div>
+          <div class="form-field form-field-wide">
+            <label for="{{ comment_form.text.id_for_label }}">Текст</label>
+            {{ comment_form.text }}
+          </div>
+        </div>
+        <button class="btn btn-secondary" type="submit">Добавить</button>
+        <p class="hint">
+          Проблема или задержка поднимает флаг в карточке. Фото, голос и
+          допуслуги — следующий блок функционала.
+        </p>
+      </form>
+
+      <div class="comment-list">
+        {% for comment in comments %}
+          <article class="comment-item {% if comment.kind == 'problem' %}comment-problem{% endif %}">
+            <header>
+              <span class="mini-badge {% if comment.kind == 'problem' %}badge-warn{% endif %}">{{ comment.get_kind_display }}</span>
+              <span class="comment-author">{% if comment.author %}{{ comment.author.display_name }}{% else %}система / без входа{% endif %}</span>
+              <time>{{ comment.created_at|dt }}</time>
+            </header>
+            <p>{{ comment.text|linebreaksbr }}</p>
+            {% if comment.expected_at %}
+              <p class="hint">Ожидаемое время: {{ comment.expected_at|dt }}</p>
+            {% endif %}
+            {% if comment.kind == 'problem' %}
+              {% if comment.resolved_at %}
+                <p class="resolved-note">Решено {{ comment.resolved_at|dt }}{% if comment.resolved_by %} · {{ comment.resolved_by.display_name }}{% endif %}</p>
+              {% else %}
+                <p class="open-note">Открыта</p>
+              {% endif %}
+            {% endif %}
+          </article>
+        {% empty %}
+          <p class="muted">Комментариев пока нет.</p>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel panel-placeholder">
+      <div class="panel-head">
+        <h2>Материалы</h2>
+        <span class="mini-badge muted">этап 4 — в разработке</span>
+      </div>
+      <p class="muted">
+        Загрузка фото «до / в процессе / после», документов и голосовых
+        комментариев появится в следующем этапе. Комментировать и фиксировать
+        проблемы можно уже сейчас — блок выше.
+      </p>
+    </section>
+
+    {% if can_view_prices %}
+      <section class="panel panel-placeholder">
+        <div class="panel-head">
+          <h2>Финансы</h2>
+          <span class="mini-badge muted">этап 5 — в разработке</span>
+        </div>
+        <p class="muted">
+          Итоговая сумма, платежи, остаток и задолженность появятся на этапе
+          финансов. Предварительная стоимость — в таблице услуг выше; позиции
+          без цены отмечены «требует оценки».
+        </p>
+      </section>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head"><h2>История</h2><span class="mini-badge muted">аудит изменений</span></div>
+      <div class="timeline">
+        {% for event in events %}
+          <div class="timeline-item">
+            <span class="timeline-dot"></span>
+            <div class="timeline-body">
+              <div class="timeline-top">
+                <strong>{{ event.get_kind_display }}</strong>
+                <time>{{ event.created_at|dt }}</time>
+              </div>
+              {% if event.from_status or event.to_status %}
+                <div class="timeline-status">
+                  <span class="badge tone-{{ event.from_status|tone }}">{{ event.from_status|status_text }}</span>
+                  <span aria-hidden="true">→</span>
+                  <span class="badge tone-{{ event.to_status|tone }}">{{ event.to_status|status_text }}</span>
+                </div>
+              {% endif %}
+              {% if event.note %}<p>{{ event.note|linebreaksbr }}</p>{% endif %}
+              <span class="timeline-author">{% if event.author %}{{ event.author.display_name }}{% else %}система / без входа{% endif %}</span>
+            </div>
+          </div>
+        {% empty %}
+          <p class="muted">История пуста.</p>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="detail-side">
+    <div class="panel side-sticky">
+      <div class="status-banner tone-{{ order.status|tone }}">
+        <span class="status-kicker">Текущий статус</span>
+        <strong>{{ order.get_status_display }}</strong>
+        <span class="status-version">версия {{ order.version }}</span>
+      </div>
+
+      {% if main_action %}
+        {% if ready_blocker %}
+          <button class="btn btn-primary btn-block btn-lg" type="button" disabled>
+            {{ main_action.label }}
+          </button>
+          <p class="field-error">{{ ready_blocker }}</p>
+        {% else %}
+          <form method="post" action="{% url 'tracker:order_status' order.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="to" value="{{ main_action.to }}">
+            <input type="hidden" name="version" value="{{ order.version }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button class="btn btn-primary btn-block btn-lg" type="submit">{{ main_action.label }}</button>
+          </form>
+        {% endif %}
+      {% endif %}
+
+      {% if forward_targets %}
+        {% with main_target=main_action.to %}
+          {% if forward_targets|length > 1 or not main_action %}
+            <div class="side-section">
+              <h3>Другие переходы</h3>
+              <div class="status-button-grid">
+                {% for target in forward_targets %}
+                  {% if target.value != main_target %}
+                    <form method="post" action="{% url 'tracker:order_status' order.pk %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="to" value="{{ target.value }}">
+                      <input type="hidden" name="version" value="{{ order.version }}">
+                      <input type="hidden" name="next" value="{{ request.path }}">
+                      <button class="btn btn-secondary btn-sm btn-block" type="submit">{{ target.label }}</button>
+                    </form>
+                  {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+        {% endwith %}
+      {% endif %}
+
+      {% if outcome_targets %}
+        <details class="danger-zone">
+          <summary>Закрыть заказ</summary>
+          <form method="post" action="{% url 'tracker:order_status' order.pk %}"
+                data-confirm="Закрыть заказ с выбранным исходом?">
+            {% csrf_token %}
+            <input type="hidden" name="version" value="{{ order.version }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-field">
+              <label for="outcome-status">Исход</label>
+              <select id="outcome-status" name="to" required>
+                {% for target in outcome_targets %}
+                  <option value="{{ target.value }}">{{ target.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="outcome-reason">Причина</label>
+              <input id="outcome-reason" type="text" name="reason" maxlength="500"
+                     placeholder="Обязательно" required>
+            </div>
+            <button class="btn btn-danger btn-block" type="submit">Закрыть заказ</button>
+          </form>
+        </details>
+      {% endif %}
+
+      {% if override_targets %}
+        <details class="override-zone">
+          <summary>Исправить статус</summary>
+          <p class="hint">
+            Обратный переход с причиной. Доступен только владельцу и
+            администратору, действие попадает в историю.
+          </p>
+          <form method="post" action="{% url 'tracker:order_status' order.pk %}"
+                data-confirm="Исправить статус заказа? Действие попадёт в историю.">
+            {% csrf_token %}
+            <input type="hidden" name="override" value="1">
+            <input type="hidden" name="version" value="{{ order.version }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="form-field">
+              <label for="override-status">Вернуть в статус</label>
+              <select id="override-status" name="to" required>
+                {% for target in override_targets %}
+                  <option value="{{ target.value }}">{{ target.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="override-reason">Причина</label>
+              <input id="override-reason" type="text" name="reason" maxlength="500"
+                     placeholder="Обязательно" required>
+            </div>
+            <button class="btn btn-secondary btn-block" type="submit">Исправить статус</button>
+          </form>
+        </details>
+      {% endif %}
+
+      <p class="hint side-footer">
+        Изменения синхронизируются с канбаном и списком заказов. Открытая
+        страница обновляется автоматически при изменении версии.
+      </p>
+    </div>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/detail.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}Заказы · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Единая база</p>
+    <h1>Заказы</h1>
+    <p class="muted">
+      Канбан, календарь и таблица — представления одних и тех же заказов.
+      Открытие любой строки ведёт в одну карточку.
+    </p>
+  </div>
+  {% if can_create_order %}
+    <div class="page-head-actions">
+      <a class="btn btn-primary" href="{% url 'tracker:order_create' %}">+ Новая заявка</a>
+    </div>
+  {% endif %}
+</section>
+
+<form class="filter-bar" method="get" action="{% url 'tracker:order_list' %}">
+  <label class="search-field">
+    <span class="sr-only">Поиск</span>
+    <span class="search-icon" aria-hidden="true">⌕</span>
+    <input type="search" name="q" value="{{ query }}"
+           placeholder="Имя, телефон, номер заказа или госномер">
+  </label>
+  <label class="select-field">
+    <span class="sr-only">Статус</span>
+    <select name="status">
+      <option value="">Все статусы</option>
+      {% for value, label in statuses %}
+        <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button class="btn btn-secondary" type="submit">Найти</button>
+  {% if query or status %}
+    <a class="btn btn-ghost" href="{% url 'tracker:order_list' %}">Сбросить</a>
+  {% endif %}
+  <span class="filter-count">{{ total }} заказов</span>
+</form>
+
+<div class="panel table-panel">
+  {% if orders %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Заказ</th>
+            <th>Создан</th>
+            <th>Клиент</th>
+            <th>Автомобиль</th>
+            <th>Услуги</th>
+            <th>Запись</th>
+            <th>Статус</th>
+            <th>Мастер</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in orders %}
+            <tr>
+              <td><a class="row-link" href="{% url 'tracker:order_detail' order.pk %}">{{ order.display_number }}</a></td>
+              <td class="nowrap">{{ order.created_at|dt }}</td>
+              <td>
+                <a class="row-link" href="{% url 'tracker:client_detail' order.client.pk %}">{{ order.client.name }}</a>
+                <div class="subline">{{ order.client.phone|phone }}</div>
+              </td>
+              <td>
+                {% if order.vehicle %}
+                  {{ order.vehicle.display_name }}
+                  {% if order.vehicle.plate %}<div class="subline plate">{{ order.vehicle.plate }}</div>{% endif %}
+                {% else %}
+                  <span class="muted">—</span>
+                {% endif %}
+              </td>
+              <td class="services-cell">{{ order.service_names_short }}</td>
+              <td class="nowrap">
+                {% if order.planned_start %}
+                  {{ order.planned_start|dt }}
+                  {% if order.planned_end %}<div class="subline">до {{ order.planned_end|dt }}</div>{% endif %}
+                {% else %}
+                  <span class="muted">не назначена</span>
+                {% endif %}
+              </td>
+              <td><span class="badge tone-{{ order.status|tone }}">{{ order.get_status_display }}</span></td>
+              <td>{% if order.master %}{{ order.master.display_name }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h2>Заказов нет</h2>
+      <p>Создайте первую заявку после звонка или подключите форму сайта.</p>
+      {% if can_create_order %}
+        <a class="btn btn-primary" href="{% url 'tracker:order_create' %}">+ Новая заявка</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="Страницы">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}&status={{ status }}">← Назад</a>
+    {% endif %}
+    <span>Стр. {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}&status={{ status }}">Вперёд →</a>
+    {% endif %}
+  </nav>
+{% endif %}
+{% endblock %}

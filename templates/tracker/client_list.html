@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}Клиенты · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">История обращений</p>
+    <h1>Клиенты</h1>
+    <p class="muted">
+      Поиск по имени, телефону и госномеру. У одного клиента может быть несколько
+      автомобилей и повторных заказов.
+    </p>
+  </div>
+  {% if can_create_order %}
+    <div class="page-head-actions">
+      <a class="btn btn-primary" href="{% url 'tracker:order_create' %}">+ Новая заявка</a>
+    </div>
+  {% endif %}
+</section>
+
+<form class="filter-bar" method="get" action="{% url 'tracker:client_list' %}">
+  <label class="search-field">
+    <span class="sr-only">Поиск клиента</span>
+    <span class="search-icon" aria-hidden="true">⌕</span>
+    <input type="search" name="q" value="{{ query }}"
+           placeholder="Имя, телефон, Telegram, госномер или автомобиль">
+  </label>
+  <button class="btn btn-secondary" type="submit">Найти</button>
+  {% if query %}<a class="btn btn-ghost" href="{% url 'tracker:client_list' %}">Сбросить</a>{% endif %}
+  <span class="filter-count">{{ total }} клиентов</span>
+</form>
+
+<div class="panel table-panel">
+  {% if clients %}
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Клиент</th>
+            <th>Телефон</th>
+            <th>Автомобили</th>
+            <th>Заказы</th>
+            <th>Последнее обращение</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in clients %}
+            <tr>
+              <td>
+                <a class="row-link" href="{% url 'tracker:client_detail' client.pk %}">{{ client.name }}</a>
+                {% if client.is_regular %}<span class="mini-badge">постоянный</span>{% endif %}
+                {% if client.telegram %}<div class="subline">{{ client.telegram }}</div>{% endif %}
+              </td>
+              <td class="nowrap"><a href="tel:{{ client.phone }}">{{ client.phone|phone }}</a></td>
+              <td>{{ client.vehicles_total }}</td>
+              <td>{{ client.orders_total }}</td>
+              <td class="nowrap">{% if client.last_order_at %}{{ client.last_order_at|dt }}{% else %}—{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <h2>Клиентов не найдено</h2>
+      <p>Клиент создаётся вместе с первой заявкой или при ручном добавлении автомобиля.</p>
+      {% if can_create_order %}
+        <a class="btn btn-primary" href="{% url 'tracker:order_create' %}">+ Новая заявка</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+{% if page_obj.paginator.num_pages > 1 %}
+  <nav class="pagination" aria-label="Страницы">
+    {% if page_obj.has_previous %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}">← Назад</a>
+    {% endif %}
+    <span>Стр. {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a class="btn btn-ghost btn-sm" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}">Вперёд →</a>
+    {% endif %}
+  </nav>
+{% endif %}
+{% endblock %}

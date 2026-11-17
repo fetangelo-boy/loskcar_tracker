@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static tracker_tags %}
+
+{% block title %}Экран мастера · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<div class="master-screen"
+     data-master-pulse="{% url 'tracker:master_pulse' %}"
+     data-master-signature="{{ signature }}">
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Производство</p>
+    <h1>Экран мастера</h1>
+    <p class="muted">
+      Крупные рабочие действия по активным автомобилям. Контакт клиента и
+      автомобиль видны, цены и финансы — нет. Готовность блокируется, пока
+      активные услуги не отмечены.
+    </p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-ghost" href="{% url 'tracker:calendar' %}">Календарь</a>
+  </div>
+</section>
+
+<div class="master-summary">
+  <span class="badge tone-booked">Сегодня: {{ today_schedule.count }}</span>
+  <span class="badge tone-progress">Загрузка {{ today_schedule.peak }} из {{ capacity }}</span>
+  <span class="muted">{{ today|date:"j E Y" }} · {{ today_schedule.weekday_name }}</span>
+</div>
+
+{% if not today_orders and not other_orders %}
+  <div class="panel empty-state">
+    <h2>Активных автомобилей нет</h2>
+    <p>Нет записанных, принятых или готовых к выдаче заказов.</p>
+    <a class="btn btn-secondary" href="{% url 'tracker:board' %}">К канбану</a>
+  </div>
+{% endif %}
+
+{% if today_orders %}
+  <h2 class="section-title">Сегодня</h2>
+  <div class="master-grid">
+    {% for order in today_orders %}
+      {% include "tracker/_master_card.html" with order=order %}
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if other_orders %}
+  <h2 class="section-title">Другие активные заказы</h2>
+  <div class="master-grid">
+    {% for order in other_orders %}
+      {% include "tracker/_master_card.html" with order=order %}
+    {% endfor %}
+  </div>
+{% endif %}
+
+<p class="board-hint">
+  Формы отправляются по одному действию за раз и проверяют версию заказа:
+  если запись успели изменить в другом окне, страница попросит обновить её.
+  Снять согласованную услугу может только владелец или администратор.
+</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/master.js' %}" defer></script>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static tracker_tags %}
+
+{% block title %}Канбан · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Оперативная картина</p>
+    <h1>Канбан заказов</h1>
+    <p class="muted">
+      Восемь рабочих колонок. На ПК карточку можно перетащить, на телефоне —
+      сменить статус в самой карточке. Закрытие и исправления — в карточке заказа.
+    </p>
+  </div>
+  {% if can_create_order %}
+    <div class="page-head-actions">
+      <a class="btn btn-primary" href="{% url 'tracker:order_create' %}">+ Новая заявка</a>
+    </div>
+  {% endif %}
+</section>
+
+<form class="filter-bar" method="get" action="{% url 'tracker:board' %}">
+  <label class="search-field">
+    <span class="sr-only">Поиск по клиенту, телефону, номеру или госномеру</span>
+    <span class="search-icon" aria-hidden="true">⌕</span>
+    <input type="search" name="q" value="{{ query }}"
+           placeholder="Поиск: имя, телефон, номер, госномер">
+  </label>
+  <label class="check-field">
+    <input type="checkbox" name="closed" value="1" {% if show_closed %}checked{% endif %}>
+    Показать все выданные
+  </label>
+  <button class="btn btn-secondary" type="submit">Применить</button>
+  {% if query or show_closed %}
+    <a class="btn btn-ghost" href="{% url 'tracker:board' %}">Сбросить</a>
+  {% endif %}
+  <span class="filter-count">{{ total_count }} в выборке</span>
+</form>
+
+{% include "tracker/_board.html" %}
+
+<p class="board-hint">
+  Недатированные заявки всегда видны. «Выдан» по умолчанию показан за последние
+  7 дней; включите «Показать все выданные», чтобы увидеть всю историю.
+  Отказы, отмены, «не пришёл» и «потерян» — в разделе
+  <a href="{% url 'tracker:order_list' %}">Заказы</a> с фильтром по статусу.
+</p>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/board.js' %}" defer></script>
+{% endblock %}

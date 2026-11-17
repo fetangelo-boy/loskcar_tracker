@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}Изменить {{ order.display_number }} · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Заказ {{ order.display_number }}</p>
+    <h1>Изменить данные</h1>
+    <p class="muted">
+      Состав услуг меняется в карточке заказа. Здесь — автомобиль, время,
+      источник, мастер и комментарий.
+    </p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-ghost" href="{% url 'tracker:order_detail' order.pk %}">← В карточку</a>
+  </div>
+</section>
+
+<form method="post" class="order-layout" novalidate>
+  {% csrf_token %}
+  {{ form.version }}
+
+  <div class="order-main">
+    {% if form.non_field_errors %}
+      <div class="form-alert" role="alert">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Клиент и автомобиль</h2>
+        <a class="mini-link" href="{% url 'tracker:client_detail' order.client.pk %}">{{ order.client.name }}</a>
+      </div>
+      <p class="hint">
+        Клиент заказа не меняется. Для другого клиента создайте новую заявку,
+        чтобы не переписать историю.
+      </p>
+      {% include "tracker/_field.html" with field=form.vehicle wide=True %}
+      {% if not order.vehicle %}
+        <p class="hint">
+          Если автомобиля нет в списке, добавьте его в
+          <a href="{% url 'tracker:client_detail' order.client.pk %}">карточке клиента</a>.
+        </p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Запись и время</h2></div>
+      <div class="form-grid">
+        {% include "tracker/_field.html" with field=form.desired_at %}
+        {% include "tracker/_field.html" with field=form.planned_start %}
+        {% include "tracker/_field.html" with field=form.planned_end %}
+        {% include "tracker/_field.html" with field=form.source %}
+        {% include "tracker/_field.html" with field=form.master %}
+      </div>
+      <p class="hint">
+        Для статуса «Записан» нужны оба поля времени, автомобиль и минимум одна
+        активная услуга. Проверяется лимит {{ WORKSHOP_CAPACITY }} автомобиля.
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Комментарий</h2></div>
+      <div class="form-grid">
+        {% include "tracker/_field.html" with field=form.comment wide=True %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="order-side">
+    <div class="panel side-sticky">
+      <h2 class="side-title">Сохранение</h2>
+      <p class="hint">
+        Если заказ уже изменили в другом окне, трекер попросит обновить страницу —
+        изменения не перетираются молча.
+      </p>
+      <button class="btn btn-primary btn-block" type="submit">Сохранить</button>
+      <a class="btn btn-ghost btn-block" href="{% url 'tracker:order_detail' order.pk %}">Отмена</a>
+    </div>
+  </aside>
+</form>
+{% endblock %}

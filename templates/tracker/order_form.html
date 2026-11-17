@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}Новая заявка · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Ручной ввод после звонка</p>
+    <h1>Новая заявка</h1>
+    <p class="muted">
+      Для фиксации обращения достаточно имени, телефона и услуги или описания.
+      Остальное можно уточнить позже.
+    </p>
+  </div>
+  <div class="page-head-actions">
+    <a class="btn btn-ghost" href="{% url 'tracker:board' %}">← К канбану</a>
+  </div>
+</section>
+
+<form method="post" class="order-layout" novalidate>
+  {% csrf_token %}
+  {{ form.client_id }}
+
+  <div class="order-main">
+
+    {% if needs_client_choice %}
+      <section class="panel warning-panel">
+        <div class="warning-head">
+          <span class="warning-icon" aria-hidden="true">!</span>
+          <div>
+            <h2>Найдены похожие клиенты</h2>
+            <p>
+              Автоматического объединения нет. Выберите существующую карточку
+              или явно создайте новую — заявка ещё не сохранена.
+            </p>
+          </div>
+        </div>
+        <div class="choice-list">
+          {% for match in matches %}
+            <label class="choice-row">
+              <input type="radio" name="client_choice" value="{{ match.pk }}"
+                     {% if form.client_choice.value == match.pk|stringformat:"s" %}checked{% endif %}>
+              <span>
+                <strong>{{ match.name }}</strong> · {{ match.phone|phone }}
+                {% if match.is_regular %}<span class="mini-badge">постоянный</span>{% endif %}
+                <span class="choice-sub">
+                  {% with vehicles=match.vehicles.all %}
+                    {% if vehicles %}
+                      Авто: {% for vehicle in vehicles %}{{ vehicle }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                    {% else %}Автомобилей в карточке нет{% endif %}
+                  {% endwith %}
+                  · заказов: {{ match.orders_count }}
+                </span>
+              </span>
+            </label>
+          {% endfor %}
+          <label class="choice-row choice-row-new">
+            <input type="radio" name="client_choice" value="new"
+                   {% if form.client_choice.value == "new" %}checked{% endif %}>
+            <span>
+              <strong>Создать новую карточку клиента</strong>
+              <span class="choice-sub">Например, другой автомобиль или отдельное обращение.</span>
+            </span>
+          </label>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if form.non_field_errors %}
+      <div class="form-alert" role="alert">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Клиент</h2>
+        {% if client %}<span class="mini-badge">выбран из базы</span>{% endif %}
+      </div>
+
+      {% if client %}
+        <div class="client-summary">
+          <div class="avatar">{{ client.name|first|upper }}</div>
+          <div class="client-summary-main">
+            <a class="client-name" href="{% url 'tracker:client_detail' client.pk %}">{{ client.name }}</a>
+            <div class="subline">{% if client.phone %}<a href="tel:{{ client.phone }}">{{ client.phone|phone }}</a>{% endif %}
+              {% if client.telegram %} · {{ client.telegram }}{% endif %}
+            </div>
+            <div class="subline">Заказов: {{ client.orders_count }} · автомобилей: {{ client.vehicle_count }}</div>
+          </div>
+          <a class="btn btn-ghost btn-sm" href="{% url 'tracker:order_create' %}">Другой клиент</a>
+        </div>
+        <p class="hint">
+          Новая заявка не перезаписывает старую историю. Если автомобиль новый,
+          добавьте его ниже или в карточке клиента.
+        </p>
+      {% else %}
+        <div class="form-grid">
+          {% include "tracker/_field.html" with field=form.client_name %}
+          {% include "tracker/_field.html" with field=form.client_phone %}
+          {% include "tracker/_field.html" with field=form.client_telegram %}
+        </div>
+        <p class="hint">
+          При совпадении телефона или имени трекер покажет найденные карточки и
+          предложит выбор — без автоматического объединения.
+        </p>
+      {% endif %}
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Автомобиль</h2><span class="mini-badge muted">необязательно для заявки</span></div>
+      {% if client %}
+        {% include "tracker/_field.html" with field=form.vehicle wide=True %}
+        <p class="hint">Или добавьте новый автомобиль в карточку клиента одним из полей ниже.</p>
+      {% endif %}
+      <div class="form-grid">
+        {% include "tracker/_field.html" with field=form.vehicle_make %}
+        {% include "tracker/_field.html" with field=form.vehicle_model %}
+        {% include "tracker/_field.html" with field=form.vehicle_plate %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Услуги</h2>
+        <span class="mini-badge muted">цена не подставляется, если не подтверждена</span>
+      </div>
+      <div class="service-grid">
+        {% for checkbox in form.services %}
+          <label class="service-option" for="{{ checkbox.id_for_label }}">
+            {{ checkbox.tag }}
+            <span>{{ checkbox.choice_label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      {% for error in form.services.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <p class="hint">
+        Можно не выбирать услугу, если запрос пока описан словами. Для статуса
+        «Записан» услуга и автомобиль станут обязательными.
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Время и коммуникация</h2></div>
+      <div class="form-grid">
+        {% include "tracker/_field.html" with field=form.desired_at %}
+        {% include "tracker/_field.html" with field=form.planned_start %}
+        {% include "tracker/_field.html" with field=form.planned_end %}
+        {% include "tracker/_field.html" with field=form.source %}
+        {% include "tracker/_field.html" with field=form.master %}
+      </div>
+      <p class="hint">
+        Желаемое время — не бронь. Подтверждённая запись требует начала и
+        окончания; проверяется вместимость {{ WORKSHOP_CAPACITY }} автомобиля.
+      </p>
+      <div class="form-grid">
+        {% include "tracker/_field.html" with field=form.comment wide=True %}
+      </div>
+    </section>
+  </div>
+
+  <aside class="order-side">
+    <div class="panel side-sticky">
+      <h2 class="side-title">Создание заявки</h2>
+      <p class="hint">
+        Заявка сохранится в общей базе. Номер присвоится автоматически.
+      </p>
+      <button class="btn btn-primary btn-block" type="submit">
+        {% if needs_client_choice %}Продолжить с выбранным клиентом{% else %}Создать заявку{% endif %}
+      </button>
+      <a class="btn btn-ghost btn-block" href="{% url 'tracker:board' %}">Отмена</a>
+      <ul class="checklist">
+        <li>Источник «Звонок» по умолчанию</li>
+        <li>Номер и телефон можно уточнить позже</li>
+        <li>Дубли предлагаются, но не объединяются молча</li>
+        <li>Финансы появятся отдельным этапом</li>
+      </ul>
+    </div>
+  </aside>
+</form>
+{% endblock %}

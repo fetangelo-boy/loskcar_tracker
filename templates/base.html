@@ -1,0 +1,92 @@
+{% load static tracker_tags %}<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>{% block title %}LoskCar Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230f172a'/><path d='M18 16h8v24h18v8H18z' fill='%2338e0c8'/></svg>">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{% url 'tracker:board' %}" aria-label="LoskCar Tracker — на главную">
+        <span class="brand-mark">LC</span>
+        <span class="brand-text">LOSKCAR<small>трекер заказов</small></span>
+      </a>
+
+      {% if request.user.is_authenticated %}
+        <nav class="main-nav" aria-label="Основная навигация">
+          <a class="nav-link {% if request.resolver_match.url_name == 'board' %}is-active{% endif %}"
+             href="{% url 'tracker:board' %}">Канбан</a>
+          <a class="nav-link {% if request.resolver_match.url_name == 'calendar' %}is-active{% endif %}"
+             href="{% url 'tracker:calendar' %}">Календарь</a>
+          <a class="nav-link {% if request.resolver_match.url_name == 'master_screen' %}is-active{% endif %}"
+             href="{% url 'tracker:master_screen' %}">Мастер</a>
+          <a class="nav-link {% if 'order' in request.resolver_match.url_name %}is-active{% endif %}"
+             href="{% url 'tracker:order_list' %}">Заказы</a>
+          <a class="nav-link {% if 'client' in request.resolver_match.url_name %}is-active{% endif %}"
+             href="{% url 'tracker:client_list' %}">Клиенты</a>
+          {% if can_view_catalog %}
+            <a class="nav-link {% if 'service' in request.resolver_match.url_name %}is-active{% endif %}"
+               href="{% url 'tracker:service_list' %}">Услуги</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+
+      <div class="topbar-actions">
+        <span class="capacity-chip" title="Одновременная вместимость студии">
+          <span class="dot"></span>{{ WORKSHOP_CAPACITY }} места
+        </span>
+        {% if can_create_order %}
+          <a class="btn btn-primary btn-sm" href="{% url 'tracker:order_create' %}">
+            <span aria-hidden="true">+</span> Новая заявка
+          </a>
+        {% endif %}
+        {% if request.user.is_authenticated %}
+          <div class="user-menu">
+            <span class="user-chip">
+              <strong>{{ request.user.display_name }}</strong>
+              <small>{{ request.user.get_role_display }}</small>
+            </span>
+            <a class="nav-link" href="{% url 'password_change' %}">Пароль</a>
+            <form method="post" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button class="btn btn-ghost btn-sm" type="submit">Выйти</button>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </header>
+
+  <main class="page">
+    {% if messages %}
+      <div class="flash-stack" role="status" aria-live="polite">
+        {% for message in messages %}
+          <div class="flash flash-{{ message.tags|default:'info' }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>LoskCar Tracker · MVP · Europe/Moscow</span>
+    <span>
+      {% if request.user.is_authenticated and request.user.role != "master" %}
+        <a href="{% url 'tracker:service_list' %}">Каталог</a>
+      {% endif %}
+      {% if request.user.is_staff %}
+        <a href="/admin/">Служебный Django admin</a>
+      {% endif %}
+    </span>
+  </footer>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="{% static 'js/app.js' %}" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

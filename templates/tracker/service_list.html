@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load tracker_tags %}
+
+{% block title %}Каталог услуг · LoskCar Tracker{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Справочник</p>
+    <h1>Каталог услуг</h1>
+    <p class="muted">
+      Начальный перечень взят из брифа. Цены и длительности не придумываются:
+      пустое поле означает «требует уточнения у владельца».
+    </p>
+  </div>
+  {% if can_manage_catalog %}
+    <div class="page-head-actions">
+      <a class="btn btn-primary" href="{% url 'tracker:service_create' %}">+ Новая услуга</a>
+    </div>
+  {% endif %}
+</section>
+
+{% if unconfirmed_count %}
+  <div class="alert-banner info">
+    <span class="warning-icon" aria-hidden="true">i</span>
+    <div>
+      <strong>{{ unconfirmed_count }} услуг не подтверждены владельцем.</strong>
+      Названия взяты из исходного брифа. Цены и длительности остаются пустыми,
+      пока их не подтвердят; в заказах они показываются как «требует оценки».
+    </div>
+  </div>
+{% endif %}
+
+<form class="filter-bar" method="get" action="{% url 'tracker:service_list' %}">
+  <label class="search-field">
+    <span class="sr-only">Поиск услуги</span>
+    <span class="search-icon" aria-hidden="true">⌕</span>
+    <input type="search" name="q" value="{{ query }}" placeholder="Название или категория">
+  </label>
+  <button class="btn btn-secondary" type="submit">Найти</button>
+  {% if query %}<a class="btn btn-ghost" href="{% url 'tracker:service_list' %}">Сбросить</a>{% endif %}
+  <span class="filter-count">{{ services|length }} услуг</span>
+</form>
+
+<div class="panel table-panel">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Услуга</th>
+          <th>Категория</th>
+          <th>Базовая цена</th>
+          <th>Длительность</th>
+          <th>Статус</th>
+          {% if can_manage_catalog %}<th class="actions-col">Действия</th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for service in services %}
+          <tr class="{% if not service.is_active %}row-muted{% endif %}">
+            <td>
+              {% if can_manage_catalog %}
+                <a class="row-link" href="{% url 'tracker:service_edit' service.pk %}">{{ service.name }}</a>
+              {% else %}
+                <span class="row-link">{{ service.name }}</span>
+              {% endif %}
+              {% if not service.is_confirmed %}<span class="mini-badge muted">не подтверждена</span>{% endif %}
+              {% if service.description %}<div class="subline">{{ service.description|truncatechars:90 }}</div>{% endif %}
+            </td>
+            <td>{{ service.category|default:"—" }}</td>
+            <td class="nowrap">
+              {% if service.base_price is None %}
+                <span class="estimate">требует оценки</span>
+              {% else %}
+                {% if service.price_is_from %}от {% endif %}{{ service.base_price|money }}
+              {% endif %}
+            </td>
+            <td class="nowrap">{{ service.duration_minutes|duration }}</td>
+            <td>
+              {% if service.is_active %}
+                <span class="state state-done">активна</span>
+              {% else %}
+                <span class="state">скрыта</span>
+              {% endif %}
+            </td>
+            {% if can_manage_catalog %}
+              <td class="actions-col">
+                <div class="action-row">
+                  <a class="btn btn-tiny btn-secondary" href="{% url 'tracker:service_edit' service.pk %}">Изменить</a>
+                  <form method="post" action="{% url 'tracker:service_toggle' service.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn-tiny btn-ghost" type="submit">
+                      {% if service.is_active %}Скрыть{% else %}Включить{% endif %}
+                    </button>
+                  </form>
+                </div>
+              </td>
+            {% endif %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="{% if can_manage_catalog %}6{% else %}5{% endif %}"><p class="muted">Услуг не найдено.</p></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="hint">
+  Использованную услугу не удаляем: её можно скрыть, чтобы она не попадала в
+  новые заказы. Исторические строки сохраняют прежнее название и цену.
+</p>
+{% endblock %}
